@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寸关尺部脉搏监测系统</title>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .control-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .control-panel select,
+        .control-panel button {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .control-panel button {
+            background: #1890ff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+
+        .control-panel button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .status-indicator {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-left: auto;
+        }
+
+        .status-normal {
+            background: #52c41a;
+            color: white;
+        }
+
+        .status-abnormal {
+            background: #ff4d4f;
+            color: white;
+        }
+
+        .chart-container {
+            margin-bottom: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            background: #fff;
+        }
+
+        .chart {
+            height: 300px;
+            width: 100%;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .chart-title {
+            margin: 0;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>寸关尺部脉搏实时监测</h1>
+    </div>
+
+    <div class="control-panel">
+        <select id="portSelect">
+            <option value="">选择串口</option>
+        </select>
+        <select id="baudrateSelect">
+            <option value="115200">115200</option>
+            <option value="9600">9600</option>
+        </select>
+        <button id="connectBtn">连接设备</button>
+        <button id="disconnectBtn" disabled>断开连接</button>
+        <div id="statusIndicator" class="status-indicator">未连接</div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h2 class="chart-title">寸部</h2>
+            <span id="cunStatus" class="status-indicator"></span>
+        </div>
+        <div id="cunChart" class="chart"></div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h2 class="chart-title">关部</h2>
+            <span id="guanStatus" class="status-indicator"></span>
+        </div>
+        <div id="guanChart" class="chart"></div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h2 class="chart-title">尺部</h2>
+            <span id="chiStatus" class="status-indicator"></span>
+        </div>
+        <div id="chiChart" class="chart"></div>
+    </div>
+
+    <script>
+        // 初始化图表
+        const charts = {
+            cun: echarts.init(document.getElementById('cunChart')),
+            guan: echarts.init(document.getElementById('guanChart')),
+            chi: echarts.init(document.getElementById('chiChart'))
+        };
+
+        // 基础配置
+        const baseOption = {
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                containLabel: true
+            },
+            xAxis: {
+                type: 'value',
+                boundaryGap: false
+            },
+            yAxis: {
+                type: 'value',
+                scale: true
+            },
+            series: [{
+                type: 'line',
+                smooth: true,
+                symbol: 'none',
+                data: []
+            }]
+        };
+
+        // 应用基础配置到所有图表
+        Object.values(charts).forEach(chart => {
+            chart.setOption(baseOption);
+        });
+
+        // 数据缓存
+        const dataCache = {
+            cun: [],
+            guan: [],
+            chi: []
+        };
+
+        // 获取DOM元素
+        const portSelect = document.getElementById('portSelect');
+        const baudrateSelect = document.getElementById('baudrateSelect');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+
+        // 获取可用串口列表
+        async function getPorts() {
+            try {
+                const response = await fetch('/api/ports');
+                const ports = await response.json();
+                portSelect.innerHTML = '<option value="">选择串口</option>';
+                ports.forEach(port => {
+                    const option = document.createElement('option');
+                    option.value = port;
+                    option.textContent = port;
+                    portSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error('获取串口列表失败:', error);
+            }
+        }
+
+        // 连接串口
+        async function connect() {
+            const port = portSelect.value;
+            const baudrate = parseInt(baudrateSelect.value);
+
+            if (!port) {
+                alert('请选择串口');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/connect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ port, baudrate })
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    statusIndicator.textContent = '已连接';
+                    statusIndicator.className = 'status-indicator status-normal';
+                } else {
+                    alert('连接失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('连接失败:', error);
+                alert('连接失败');
+            }
+        }
+
+        // 断开连接
+        async function disconnect() {
+            try {
+                const response = await fetch('/api/disconnect', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                if (result.status === 'success') {
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    statusIndicator.textContent = '未连接';
+                    statusIndicator.className = 'status-indicator';
+                    portSelect.disabled = false;
+                } else {
+                    alert('断开连接失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('断开连接失败:', error);
+                alert('断开连接失败');
+            }
+        }
+
+        // 连接WebSocket
+        const ws = new WebSocket('ws://localhost:8000/ws');
+
+        ws.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+
+            // 更新数据缓存和图表
+            ['cun', 'guan', 'chi'].forEach(position => {
+                dataCache[position].push([data.timestamp, data[position]]);
+                if (dataCache[position].length > 100) {
+                    dataCache[position].shift();
+                }
+
+                // 更新图表
+                charts[position].setOption({
+                    series: [{
+                        data: dataCache[position]
+                    }]
+                });
+
+                // 更新状态指示器
+                const statusElement = document.getElementById(`${position}Status`);
+                statusElement.textContent = data.status === 'normal' ? '正常' : '异常';
+                statusElement.className = `status-indicator status-${data.status}`;
+            });
+        };
+
+        // 事件监听器
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+
+        // 初始化获取串口列表
+        getPorts();
+
+        // 处理窗口大小变化
+        window.addEventListener('resize', function () {
+            Object.values(charts).forEach(chart => chart.resize());
+        });
+    </script>
+</body>
+
+</html>

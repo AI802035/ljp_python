@@ -1,0 +1,45 @@
+.layout {
+    min-height: 100vh;
+}
+
+.logo {
+    float: left;
+    width: 120px;
+    height: 31px;
+    margin: 16px 24px 16px 0;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.site-layout-content {
+    min-height: 280px;
+    padding: 24px;
+    background: #fff;
+    margin-top: 24px;
+    border-radius: 4px;
+}
+
+.chart-container {
+    margin-bottom: 32px;
+    padding: 16px;
+    background: #fafafa;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.ant-row-rtl .logo {
+    float: right;
+    margin: 16px 0 16px 24px;
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+    .site-layout-content {
+        padding: 12px;
+        margin-top: 12px;
+    }
+
+    .chart-container {
+        margin-bottom: 16px;
+        padding: 8px;
+    }
+}
